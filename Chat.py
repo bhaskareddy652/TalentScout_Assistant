@@ -1,178 +1,136 @@
-{
- "cells": [
-  {
-   "cell_type": "code",
-   "execution_count": 3,
-   "id": "5d0e0830-0237-4f14-8480-ac6069a2fe20",
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "import streamlit as st\n",
-    "import openai\n",
-    "import os\n",
-    "from datetime import datetime\n",
-    "\n",
-    "# Set your OpenAI API key\n",
-    "openai.api_key = os.getenv(\"OPENAI_API_KEY\")  # or set your key directly\n",
-    "\n",
-    "# Initialize session state\n",
-    "if 'conversation_history' not in st.session_state:\n",
-    "    st.session_state.conversation_history = []\n",
-    "if 'submitted' not in st.session_state:\n",
-    "    st.session_state.submitted = False\n",
-    "\n",
-    "# Function to generate technical questions\n",
-    "def generate_technical_questions(tech_stack, position, experience):\n",
-    "    prompt = f\"\"\"\n",
-    "    Generate 5 technical interview questions to assess a candidate's proficiency for a {position} position.\n",
-    "    The candidate has {experience} years of experience and lists the following technologies: {tech_stack}.\n",
-    "    Provide questions that range from basic to advanced based on their experience level.\n",
-    "    Format the questions as a numbered list with clear, specific questions.\n",
-    "    \"\"\"\n",
-    "    \n",
-    "    try:\n",
-    "        response = openai.ChatCompletion.create(\n",
-    "            model=\"gpt-3.5-turbo\",\n",
-    "            messages=[{\"role\": \"user\", \"content\": prompt}],\n",
-    "            temperature=0.7\n",
-    "        )\n",
-    "        return response['choices'][0]['message']['content']\n",
-    "    except Exception as e:\n",
-    "        st.error(f\"Error generating questions: {e}\")\n",
-    "        return \"Could not generate questions at this time.\"\n",
-    "\n",
-    "# Function to save candidate data\n",
-    "def save_candidate_data(data):\n",
-    "    timestamp = datetime.now().strftime(\"%Y-%m-%d %H:%M:%S\")\n",
-    "    st.session_state.conversation_history.append({\n",
-    "        \"timestamp\": timestamp,\n",
-    "        \"data\": data,\n",
-    "        \"questions\": generate_technical_questions(\n",
-    "            data['tech_stack'], \n",
-    "            data['desired_position'],\n",
-    "            data['years_experience']\n",
-    "        )\n",
-    "    })\n",
-    "    st.session_state.submitted = True\n",
-    "\n",
-    "# Streamlit UI\n",
-    "st.title(\"🚀 TalentScout Hiring Assistant\")\n",
-    "st.write(\"Welcome to the TalentScout Hiring Assistant! Let's collect some information to assess your fit for the role.\")\n",
-    "\n",
-    "# Sidebar\n",
-    "with st.sidebar:\n",
-    "    st.header(\"About\")\n",
-    "    st.write(\"This tool helps recruiters assess technical candidates by generating relevant interview questions.\")\n",
-    "    \n",
-    "    if st.session_state.conversation_history:\n",
-    "        st.header(\"Previous Submissions\")\n",
-    "        for idx, entry in enumerate(st.session_state.conversation_history):\n",
-    "            st.write(f\"{idx+1}. {entry['timestamp']} - {entry['data']['full_name']}\")\n",
-    "\n",
-    "# Main form\n",
-    "if not st.session_state.submitted:\n",
-    "    with st.form(key='candidate_info'):\n",
-    "        col1, col2 = st.columns(2)\n",
-    "        \n",
-    "        with col1:\n",
-    "            full_name = st.text_input(\"Full Name*\", help=\"Please enter your full name\")\n",
-    "            email = st.text_input(\"Email Address*\", help=\"We'll contact you at this address\")\n",
-    "            years_experience = st.number_input(\"Years of Experience*\", \n",
-    "                                             min_value=0, \n",
-    "                                             max_value=50,\n",
-    "                                             help=\"Total years in professional roles\")\n",
-    "        \n",
-    "        with col2:\n",
-    "            phone = st.text_input(\"Phone Number\", help=\"Optional contact number\")\n",
-    "            desired_position = st.text_input(\"Desired Position(s)*\", \n",
-    "                                           help=\"E.g., 'Senior Python Developer', 'DevOps Engineer'\")\n",
-    "            current_location = st.text_input(\"Current Location\", help=\"City and country\")\n",
-    "        \n",
-    "        tech_stack = st.text_area(\"Tech Stack*\", \n",
-    "                                help=\"List all relevant technologies, frameworks, and tools (comma separated)\")\n",
-    "        \n",
-    "        submitted = st.form_submit_button(\"Submit Application\")\n",
-    "        if submitted:\n",
-    "            required_fields = [full_name, email, years_experience, desired_position, tech_stack]\n",
-    "            if not all(required_fields):\n",
-    "                st.error(\"Please fill in all required fields (marked with *)\")\n",
-    "            else:\n",
-    "                candidate_data = {\n",
-    "                    \"full_name\": full_name,\n",
-    "                    \"email\": email,\n",
-    "                    \"phone\": phone,\n",
-    "                    \"years_experience\": years_experience,\n",
-    "                    \"desired_position\": desired_position,\n",
-    "                    \"current_location\": current_location,\n",
-    "                    \"tech_stack\": tech_stack\n",
-    "                }\n",
-    "                save_candidate_data(candidate_data)\n",
-    "                st.rerun()\n",
-    "\n",
-    "else:\n",
-    "    # After submission\n",
-    "    latest_entry = st.session_state.conversation_history[-1]\n",
-    "    data = latest_entry['data']\n",
-    "    \n",
-    "    st.success(\"✅ Thank you for your submission!\")\n",
-    "    \n",
-    "    with st.expander(\"Review Your Information\"):\n",
-    "        st.subheader(\"Candidate Details\")\n",
-    "        col1, col2 = st.columns(2)\n",
-    "        \n",
-    "        with col1:\n",
-    "            st.write(f\"**Name:** {data['full_name']}\")\n",
-    "            st.write(f\"**Email:** {data['email']}\")\n",
-    "            st.write(f\"**Phone:** {data['phone'] or 'Not provided'}\")\n",
-    "        \n",
-    "        with col2:\n",
-    "            st.write(f\"**Experience:** {data['years_experience']} years\")\n",
-    "            st.write(f\"**Position:** {data['desired_position']}\")\n",
-    "            st.write(f\"**Location:** {data['current_location'] or 'Not provided'}\")\n",
-    "    \n",
-    "    st.subheader(\"Technical Assessment Questions\")\n",
-    "    st.markdown(latest_entry['questions'])\n",
-    "    \n",
-    "    st.download_button(\n",
-    "        label=\"Download Questions\",\n",
-    "        data=latest_entry['questions'],\n",
-    "        file_name=f\"technical_questions_{data['full_name']}.txt\",\n",
-    "        mime=\"text/plain\"\n",
-    "    )\n",
-    "    \n",
-    "    if st.button(\"Start New Application\"):\n",
-    "        st.session_state.submitted = False\n",
-    "        st.rerun()"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": null,
-   "id": "ac7d9db3-c981-466a-ad17-b1992ac0680b",
-   "metadata": {},
-   "outputs": [],
-   "source": []
-  }
- ],
- "metadata": {
-  "kernelspec": {
-   "display_name": "Python 3 (ipykernel)",
-   "language": "python",
-   "name": "python3"
-  },
-  "language_info": {
-   "codemirror_mode": {
-    "name": "ipython",
-    "version": 3
-   },
-   "file_extension": ".py",
-   "mimetype": "text/x-python",
-   "name": "python",
-   "nbconvert_exporter": "python",
-   "pygments_lexer": "ipython3",
-   "version": "3.11.7"
-  }
- },
- "nbformat": 4,
- "nbformat_minor": 5
-}
+import streamlit as st
+import openai
+import os
+from datetime import datetime
+
+# Set your OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")  # or set your key directly
+
+# Initialize session state
+if 'conversation_history' not in st.session_state:
+    st.session_state.conversation_history = []
+if 'submitted' not in st.session_state:
+    st.session_state.submitted = False
+
+# Function to generate technical questions
+def generate_technical_questions(tech_stack, position, experience):
+    prompt = f"""
+    Generate 5 technical interview questions to assess a candidate's proficiency for a {position} position.
+    The candidate has {experience} years of experience and lists the following technologies: {tech_stack}.
+    Provide questions that range from basic to advanced based on their experience level.
+    Format the questions as a numbered list with clear, specific questions.
+    """
+    
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7
+        )
+        return response['choices'][0]['message']['content']
+    except Exception as e:
+        st.error(f"Error generating questions: {e}")
+        return "Could not generate questions at this time."
+
+# Function to save candidate data
+def save_candidate_data(data):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state.conversation_history.append({
+        "timestamp": timestamp,
+        "data": data,
+        "questions": generate_technical_questions(
+            data['tech_stack'], 
+            data['desired_position'],
+            data['years_experience']
+        )
+    })
+    st.session_state.submitted = True
+
+# Streamlit UI
+st.title("🚀 TalentScout Hiring Assistant")
+st.write("Welcome to the TalentScout Hiring Assistant! Let's collect some information to assess your fit for the role.")
+
+# Sidebar
+with st.sidebar:
+    st.header("About")
+    st.write("This tool helps recruiters assess technical candidates by generating relevant interview questions.")
+    
+    if st.session_state.conversation_history:
+        st.header("Previous Submissions")
+        for idx, entry in enumerate(st.session_state.conversation_history):
+            st.write(f"{idx+1}. {entry['timestamp']} - {entry['data']['full_name']}")
+
+# Main form
+if not st.session_state.submitted:
+    with st.form(key='candidate_info'):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            full_name = st.text_input("Full Name*", help="Please enter your full name")
+            email = st.text_input("Email Address*", help="We'll contact you at this address")
+            years_experience = st.number_input("Years of Experience*", 
+                                             min_value=0, 
+                                             max_value=50,
+                                             help="Total years in professional roles")
+        
+        with col2:
+            phone = st.text_input("Phone Number", help="Optional contact number")
+            desired_position = st.text_input("Desired Position(s)*", 
+                                           help="E.g., 'Senior Python Developer', 'DevOps Engineer'")
+            current_location = st.text_input("Current Location", help="City and country")
+        
+        tech_stack = st.text_area("Tech Stack*", 
+                                help="List all relevant technologies, frameworks, and tools (comma separated)")
+        
+        submitted = st.form_submit_button("Submit Application")
+        if submitted:
+            required_fields = [full_name, email, years_experience, desired_position, tech_stack]
+            if not all(required_fields):
+                st.error("Please fill in all required fields (marked with *)")
+            else:
+                candidate_data = {
+                    "full_name": full_name,
+                    "email": email,
+                    "phone": phone,
+                    "years_experience": years_experience,
+                    "desired_position": desired_position,
+                    "current_location": current_location,
+                    "tech_stack": tech_stack
+                }
+                save_candidate_data(candidate_data)
+                st.rerun()
+
+else:
+    # After submission
+    latest_entry = st.session_state.conversation_history[-1]
+    data = latest_entry['data']
+    
+    st.success("✅ Thank you for your submission!")
+    
+    with st.expander("Review Your Information"):
+        st.subheader("Candidate Details")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.write(f"**Name:** {data['full_name']}")
+            st.write(f"**Email:** {data['email']}")
+            st.write(f"**Phone:** {data['phone'] or 'Not provided'}")
+        
+        with col2:
+            st.write(f"**Experience:** {data['years_experience']} years")
+            st.write(f"**Position:** {data['desired_position']}")
+            st.write(f"**Location:** {data['current_location'] or 'Not provided'}")
+    
+    st.subheader("Technical Assessment Questions")
+    st.markdown(latest_entry['questions'])
+    
+    st.download_button(
+        label="Download Questions",
+        data=latest_entry['questions'],
+        file_name=f"technical_questions_{data['full_name']}.txt",
+        mime="text/plain"
+    )
+    
+    if st.button("Start New Application"):
+        st.session_state.submitted = False
+        st.rerun()
